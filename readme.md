@@ -35,6 +35,7 @@ Additionally it would be possible to manually cancel the Context prematurely as 
 
 ### Example
 `go run main.go api-mock.go db-mock.go`
+
 In the example we have some different timeouts for the contexts and we are using our pattern in all functions.
 When a timeout occurs the select-statement will catch it and return an error.
 The worker-func in that function will still run, but
