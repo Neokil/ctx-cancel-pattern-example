@@ -1,29 +1,28 @@
 # Context-Cancel-Pattern
 In this example I will show how the Context can be used to cancel long running operations. This pattern can be very helpful if you find yourself writing long running functions that need to have a timeout or some other cancel functionality.
 The Pattern that we will be using in this example looks like this:
-```
+```golang
 func foo(ctx context.Context) error {
     // Create one or more result/error channels
     rc := make(chan error, 1)
     defer close(rc)
 
     go func() {
-        err := longRunningBar()
+        err := longRunningBar(ctx)
         if err != nil {
             rc <- err
             return
         }
         rc <- nil
-    }
+    }()
 
     select {
         case err := <-rc:
             if err != nil {
-                fmt.Errorf("Make sure to wrap your error: %w", err)
-                return
+                return fmt.Errorf("Make sure to wrap your error: %w", err)
             }
             return nil
-        case <- ctx.Done()
+        case <- ctx.Done():
             return fmt.Errorf("Make sure to wrap your errors: %w", ctx.Err())
     }
 }

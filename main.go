@@ -66,30 +66,7 @@ func updateOrCreateUser(ctx context.Context, user ApiUser) error {
 	rc := make(chan error, 1)
 	defer close(rc)
 
-	go func() {
-		db := &DB{}
-		id, err := db.getUserIdByEmail(user.Email)
-		if errors.Is(err, UserNotFoundError) {
-			err = db.createUser(user.Firstname, user.Lastname, user.Email)
-			if err != nil {
-				rc <- fmt.Errorf("Failed to create User: %w", err)
-				return
-			}
-			rc <- nil
-			return
-		}
-		if err != nil {
-			rc <- fmt.Errorf("Failed to get User-ID: %w", err)
-			return
-		}
-		err = db.updateUser(id, user.Firstname, user.Lastname, user.Email)
-		if err != nil {
-			rc <- fmt.Errorf("Failed to update User: %w", err)
-			return
-		}
-		rc <- nil
-		return
-	}()
+	go updateOrCreateUserWorkerFunc(rc, user)
 
 	select {
 	case err := <-rc:
@@ -100,6 +77,31 @@ func updateOrCreateUser(ctx context.Context, user ApiUser) error {
 	case <-ctx.Done():
 		return fmt.Errorf("Context was terminated in updateOrCreateUser: %w", ctx.Err())
 	}
+}
+
+func updateOrCreateUserWorkerFunc(rc chan<- error, user ApiUser) {
+	db := &DB{}
+	id, err := db.getUserIdByEmail(user.Email)
+	if errors.Is(err, UserNotFoundError) {
+		err = db.createUser(user.Firstname, user.Lastname, user.Email)
+		if err != nil {
+			rc <- fmt.Errorf("Failed to create User: %w", err)
+			return
+		}
+		rc <- nil
+		return
+	}
+	if err != nil {
+		rc <- fmt.Errorf("Failed to get User-ID: %w", err)
+		return
+	}
+	err = db.updateUser(id, user.Firstname, user.Lastname, user.Email)
+	if err != nil {
+		rc <- fmt.Errorf("Failed to update User: %w", err)
+		return
+	}
+	rc <- nil
+	return
 }
 
 func getUsersFromAPI(ctx context.Context) ([]ApiUser, error) {
@@ -117,15 +119,7 @@ func getUsersFromAPI(ctx context.Context) ([]ApiUser, error) {
 	ec := make(chan error, 1)
 	defer close(ec)
 
-	go func() {
-		api := &API{}
-		u, err := api.getList()
-		if err != nil {
-			ec <- err
-			return
-		}
-		rc <- u
-	}()
+	go getUsersFromAPIWorkerFunc(rc, ec)
 
 	select {
 	case r := <-rc:
@@ -135,4 +129,15 @@ func getUsersFromAPI(ctx context.Context) ([]ApiUser, error) {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("Context was terminated in getUsersFromAPI: %w", ctx.Err())
 	}
+}
+
+func getUsersFromAPIWorkerFunc(rc chan<- []ApiUser, ec chan<- error) {
+
+	api := &API{}
+	u, err := api.getList()
+	if err != nil {
+		ec <- err
+		return
+	}
+	rc <- u
 }
